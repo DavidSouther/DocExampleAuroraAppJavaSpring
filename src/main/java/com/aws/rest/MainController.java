@@ -1,6 +1,8 @@
 package com.aws.rest;
 
+import com.aws.entities.WorkItem;
 import com.aws.services.SendMessages;
+import jxl.write.WriteException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.ComponentScan;
 import org.springframework.web.bind.annotation.CrossOrigin;
@@ -13,6 +15,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.util.List;
 import java.util.Map;
 
@@ -21,64 +24,68 @@ import java.util.Map;
 @RestController
 @RequestMapping("api/")
 public class MainController {
+    private final RetrieveItems ri;
+    private final WriteExcel writeExcel;
+
+    private final SendMessages sm;
+
+    private final InjectWorkService iw;
 
     @Autowired
-    RetrieveItems ri;
-
-    @Autowired
-    WriteExcel writeExcel;
-
-    @Autowired
-    SendMessages sm;
-
-    @Autowired
-    InjectWorkService iw;
-
-    @GetMapping("items/{state}")
-    public List<com.aws.entities.WorkItem> getItems(@PathVariable String state) {
-        if (state.compareTo("active") == 0)
-            return ri.getItemsDataSQLReport(0);
-        else
-            return ri.getItemsDataSQLReport(1);
+    MainController(
+        RetrieveItems ri,
+        WriteExcel writeExcel,
+        SendMessages sm,
+        InjectWorkService iw
+    ) {
+        this.ri = ri;
+        this.writeExcel = writeExcel;
+        this.sm = sm;
+        this.iw = iw;
     }
 
-    // Flip an item from Active to Archive.
+    @GetMapping("items/{state}")
+    public List<WorkItem> getItems(@PathVariable String state) {
+        if (state.compareTo("active") == 0) {
+            return ri.getItemsDataSQLReport("0");
+        } else {
+            return ri.getItemsDataSQLReport("1");
+        }
+    }
+
     @PutMapping("mod/{id}")
     public String modUser(@PathVariable String id) {
         ri.flipItemArchive(id);
-        return id +" was archived";
+        return id + " was archived";
     }
 
-    // Adds a new item to the database.
     @PostMapping("add")
-    String addItems(@RequestBody Map<String, Object> payLoad) {
-        String name = "user";
-        String guide =  (String)payLoad.get("guide");
-        String description =  (String)payLoad.get("description");
-        String status = (String)payLoad.get("status");
+    public String addItems(@RequestBody Map<String, String> payload) {
+         String name = App.username;
+         String guide = payload.get("guide");
+         String description = payload.get("description");
+         String status = payload.get("status");
 
-        // Create a Work Item object to pass to the injestNewSubmission method.
-        com.aws.entities.WorkItem myWork = new com.aws.entities.WorkItem();
-        myWork.setGuide(guide);
-        myWork.setDescription(description);
-        myWork.setStatus(status);
-        myWork.setName(name);
+         WorkItem item = new WorkItem();
+         item.setGuide(guide);
+         item.setDescription(description);
+         item.setName(name);
+         item.setStatus(status);
 
-        iw.injestNewSubmission(myWork);
-        return "Item added";
+         String id = iw.injectNewSubmission(item);
+         return "Added " + id;
     }
 
     @PutMapping("report/{email}")
     public String sendReport(@PathVariable String email){
-        List<com.aws.entities.WorkItem> theList = ri.getItemsDataSQLReport(0);
-        java.io.InputStream is = writeExcel.exportExcel(theList);
-
+        List<WorkItem> list = ri.getItemsDataSQLReport("0");
         try {
+            InputStream is = writeExcel.write(list);
             sm.sendReport(is, email);
-
-        }catch (IOException e) {
-            e.getStackTrace();
+            return "Report generated & sent" ;
+        } catch (IOException | WriteException e) {
+            e.printStackTrace();
         }
-        return "Report is created";
+        return "Failed to generate report";
     }
 }
