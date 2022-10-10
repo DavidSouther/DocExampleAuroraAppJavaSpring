@@ -1,10 +1,8 @@
 package com.aws.rest;
 
-import com.aws.entities.WorkItem;
-import com.aws.services.SendMessages;
-import jxl.write.WriteException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.ComponentScan;
+import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -13,79 +11,67 @@ import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.server.ResponseStatusException;
 
-import java.io.IOException;
-import java.io.InputStream;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
+import java.util.stream.Collectors;
+import java.util.stream.StreamSupport;
 
 @ComponentScan(basePackages = {"com.aws.services"})
 @CrossOrigin(origins = "*")
 @RestController
-@RequestMapping("api/")
+@RequestMapping("api/items")
 public class MainController {
-    private final RetrieveItems ri;
-    private final WriteExcel writeExcel;
-
-    private final SendMessages sm;
-
-    private final InjectWorkService iw;
+    private final WorkItemRepository repository;
 
     @Autowired
     MainController(
-        RetrieveItems ri,
-        WriteExcel writeExcel,
-        SendMessages sm,
-        InjectWorkService iw
+        WorkItemRepository repository
     ) {
-        this.ri = ri;
-        this.writeExcel = writeExcel;
-        this.sm = sm;
-        this.iw = iw;
+        this.repository = repository;
     }
 
-    @GetMapping("items/{state}")
-    public List<WorkItem> getItems(@PathVariable String state) {
-        if (state.compareTo("active") == 0) {
-            return ri.getItemsDataSQLReport("0");
-        } else {
-            return ri.getItemsDataSQLReport("1");
-        }
+    @GetMapping("{id}")
+    public WorkItem getItem(@PathVariable String id) {
+        var item = repository.findById(id);
+        if (item.isEmpty()) throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Entity not found");
+        return item.get();
+    }
+    @GetMapping("")
+    public List<WorkItem> getItems() {
+        var result = repository.findAll();
+        return StreamSupport.stream(result.spliterator(), false)
+                .collect(Collectors.toUnmodifiableList());
     }
 
-    @PutMapping("mod/{id}")
-    public String modUser(@PathVariable String id) {
-        ri.flipItemArchive(id);
-        return id + " was archived";
+    @PutMapping("{id}:archive")
+    public WorkItem modUser(@PathVariable String id) {
+        var item = repository.findById(id);
+        if (item.isEmpty()) throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Entity not found");
+        var workItem = item.get();
+        workItem.setStatus("0");
+        return repository.save(workItem);
     }
 
-    @PostMapping("add")
-    public String addItems(@RequestBody Map<String, String> payload) {
-         String name = App.username;
-         String guide = payload.get("guide");
-         String description = payload.get("description");
-         String status = payload.get("status");
+    @PostMapping(value = "", consumes = {"application/json"})
+    public WorkItem addItem(@RequestBody Map<String, String> payload) {
+        String name = payload.get("name");
+        String guide = payload.get("guide");
+        String description = payload.get("description");
 
-         WorkItem item = new WorkItem();
-         item.setGuide(guide);
-         item.setDescription(description);
-         item.setName(name);
-         item.setStatus(status);
+        WorkItem item = new WorkItem();
+        String workId = UUID.randomUUID().toString();
+        String date = LocalDateTime.now().toString();
+        item.setId(workId);
+        item.setGuide(guide);
+        item.setDescription(description);
+        item.setName(name);
+        item.setDate(date);
+        item.setStatus(WorkItemRepository.active);
 
-         String id = iw.injectNewSubmission(item);
-         return "Added " + id;
-    }
-
-    @PutMapping("report/{email}")
-    public String sendReport(@PathVariable String email){
-        List<WorkItem> list = ri.getItemsDataSQLReport("0");
-        try {
-            InputStream is = writeExcel.write(list);
-            sm.sendReport(is, email);
-            return "Report generated & sent" ;
-        } catch (IOException | WriteException e) {
-            e.printStackTrace();
-        }
-        return "Failed to generate report";
+        return repository.save(item);
     }
 }

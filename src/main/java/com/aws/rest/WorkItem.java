@@ -1,4 +1,4 @@
-package com.aws.entities;
+package com.aws.rest;
 
 import software.amazon.awssdk.services.rdsdata.model.Field;
 
@@ -13,7 +13,7 @@ public class WorkItem {
     private String status;
 
     public static WorkItem from(List<Field> fields) {
-        WorkItem item = new WorkItem();
+        var item = new WorkItem();
         for (int i = 0; i <= 5; i++) {
             String value = fields.get(i).stringValue();
             switch (i) {
@@ -40,7 +40,7 @@ public class WorkItem {
         return item;
     }
 
-    public String setId(String id) {
+    public void setId(String id) {
         this.id = id;
     }
 
