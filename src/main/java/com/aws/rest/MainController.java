@@ -40,6 +40,7 @@ public class MainController {
         if (item.isEmpty()) throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Entity not found");
         return item.get();
     }
+
     @GetMapping("")
     public List<WorkItem> getItems() {
         var result = repository.findAll();
@@ -52,11 +53,11 @@ public class MainController {
         var item = repository.findById(id);
         if (item.isEmpty()) throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Entity not found");
         var workItem = item.get();
-        workItem.setStatus("0");
+        workItem.setStatus(WorkItemRepository.archived);
         return repository.save(workItem);
     }
 
-    @PostMapping(value = "", consumes = {"application/json"})
+    @PostMapping("")
     public WorkItem addItem(@RequestBody Map<String, String> payload) {
         String name = payload.get("name");
         String guide = payload.get("guide");

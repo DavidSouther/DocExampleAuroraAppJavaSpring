@@ -17,8 +17,9 @@ import java.util.stream.StreamSupport;
 
 @Component()
 public class WorkItemRepository implements CrudRepository<WorkItem, String> {
-    static final String active = "0";
-    static final String archived = "1";
+    static final String active = "ACT";
+    static final String archived = "ARCH";
+    static final String database = "auroraappdb";
     static final String secretArn = "arn:aws:secretsmanager:us-east-1:659765859849:secret:docexampleauroraappsecret8B-ZRuYk32DvFmC-Dz2N2y";
     static final String resourceArn = "arn:aws:rds:us-east-1:659765859849:cluster:docexampleauroraapp-docexampleauroraappclustereb7e-vqwzivzly59p";
 
@@ -30,7 +31,7 @@ public class WorkItemRepository implements CrudRepository<WorkItem, String> {
         var sqlRequest = ExecuteStatementRequest.builder()
                 .resourceArn(resourceArn)
                 .secretArn(secretArn)
-                .database(App.database)
+                .database(database)
                 .sql(sqlStatement)
                 .parameters(parameters)
                 .build();
@@ -94,21 +95,12 @@ public class WorkItemRepository implements CrudRepository<WorkItem, String> {
 
     @Override
     public Iterable<WorkItem> findAll() {
-        String sqlStatement = "SELECT idwork, date, description, guide, status, username " +
-                "FROM Work WHERE archive = :arch ;";
-        List<SqlParameter> parameters = List.of(
-                param("arch", archived)
-        );
-        return execute(sqlStatement, parameters)
-                .records()
-                .stream()
-                .map(WorkItem::from)
-                .collect(Collectors.toUnmodifiableList());
+        return findAllWithStatus(active);
     }
 
     public Iterable<WorkItem> findAllWithStatus(String status) {
         String sqlStatement = "SELECT idwork, date, description, guide, status, username " +
-                "FROM Work WHERE archive = :arch ;";
+                "FROM Work WHERE status = :arch ;";
         List<SqlParameter> parameters = List.of(
                 param("arch", status)
         );
