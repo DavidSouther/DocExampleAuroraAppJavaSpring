@@ -9,6 +9,7 @@ import software.amazon.awssdk.services.rdsdata.model.Field;
 import software.amazon.awssdk.services.rdsdata.model.SqlParameter;
 
 import java.time.LocalDateTime;
+import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -76,16 +77,11 @@ public class WorkItemRepository implements CrudRepository<WorkItem, String> {
     public Optional<WorkItem> findById(String s) {
         String sqlStatement = "SELECT idwork, date, description, guide, status, username FROM Work WHERE idwork = :id;";
         List<SqlParameter> parameters = List.of(param("id", s));
-        var result = execute(sqlStatement, parameters)
+        return execute(sqlStatement, parameters)
                 .records()
                 .stream()
                 .map(WorkItem::from)
-                .collect(Collectors.toUnmodifiableList());
-        if (result.isEmpty()) {
-            return Optional.empty();
-        } else {
-            return Optional.of(result.get(0));
-        }
+                .findFirst();
     }
 
     @Override
@@ -113,11 +109,7 @@ public class WorkItemRepository implements CrudRepository<WorkItem, String> {
 
     @Override
     public Iterable<WorkItem> findAllById(Iterable<String> strings) {
-        var item = findById(strings.iterator().next());
-        if (item.isPresent()) {
-            return List.of(item.get());
-        }
-        return List.of();
+        return findById(strings.iterator().next()).map(Collections::singleton).orElseGet(Collections::emptySet);
     }
 
     @Override
